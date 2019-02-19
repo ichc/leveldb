@@ -10,7 +10,7 @@
 namespace leveldb {
 
 Options::Options()
-    : comparator(BytewiseComparator()),
+    : comparator(BytewiseComparator()), /* 使用预定义的全局 bytewise 比较器对象 */
       create_if_missing(false),
       error_if_exists(false),
       paranoid_checks(false),

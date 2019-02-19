@@ -67,6 +67,11 @@ class BytewiseComparatorImpl : public Comparator {
 
 // Intentionally not destroyed to prevent destructor racing
 // with background threads.
+// 定义为静态全局变量，main 函数启动时就被构造，具有全局的生命周期，
+// 因此从不释放，避免了多线程析构的竞态。
+// int BytewiseComparatorImplCompare(const Slice& a, const Slice& b) const {
+//    return a.compare(b);
+// }
 static const Comparator* bytewise = new BytewiseComparatorImpl;
 
 const Comparator* BytewiseComparator() {

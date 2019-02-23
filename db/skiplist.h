@@ -173,14 +173,21 @@ struct SkipList<Key,Comparator>::Node {
 
  private:
   // Array of length equal to the node height.  next_[0] is lowest level link.
+  // next_[1] 等价于 AtomicPointer *next_ ，当作数组使用 
   port::AtomicPointer next_[1];
 };
 
 template<typename Key, class Comparator>
 typename SkipList<Key,Comparator>::Node*
 SkipList<Key,Comparator>::NewNode(const Key& key, int height) {
+  // Node {
+  // 	const Key key;
+  // 	port::AtomicPointer	next_[1];
+  // }
+  // 这里申请内存恰好申请了 height 个 AtomicPointer
   char* mem = arena_->AllocateAligned(
       sizeof(Node) + sizeof(port::AtomicPointer) * (height - 1));
+  // 定位 new 操作符
   return new (mem) Node(key);
 }
 
@@ -259,18 +266,25 @@ template<typename Key, class Comparator>
 typename SkipList<Key,Comparator>::Node* SkipList<Key,Comparator>::FindGreaterOrEqual(const Key& key, Node** prev)
     const {
   Node* x = head_;
+  // 从顶层开始，next_[0] 指向底层链表
   int level = GetMaxHeight() - 1;
   while (true) {
+	// 当前层的前驱
     Node* next = x->Next(level);
+	
+	// 如果 key > next->key, 可以获得额外的步进
     if (KeyIsAfterNode(key, next)) {
       // Keep searching in this list
       x = next;
     } else {
       if (prev != NULL) prev[level] = x;
+	  
+	  // 已经是最低一层了
       if (level == 0) {
         return next;
       } else {
         // Switch to next list
+		// 下降一层
         level--;
       }
     }
@@ -322,9 +336,11 @@ template<typename Key, class Comparator>
 SkipList<Key,Comparator>::SkipList(Comparator cmp, Arena* arena)
     : compare_(cmp),
       arena_(arena),
-      head_(NewNode(0 /* any key will do */, kMaxHeight)),
+      head_(NewNode(0 /* any key will do */, kMaxHeight)), // skiplist 构造时就新建了一个头节点，头节点的高度为 kMaxHeight
       max_height_(reinterpret_cast<void*>(1)),
       rnd_(0xdeadbeef) {
+	
+  // 头节点每一层的指针初始化为 NULL
   for (int i = 0; i < kMaxHeight; i++) {
     head_->SetNext(i, NULL);
   }
@@ -335,6 +351,7 @@ void SkipList<Key,Comparator>::Insert(const Key& key) {
   // TODO(opt): We can use a barrier-free variant of FindGreaterOrEqual()
   // here since Insert() is externally synchronized.
   Node* prev[kMaxHeight];
+  // 找出不小于 key 的第一个节点
   Node* x = FindGreaterOrEqual(key, prev);
 
   // Our data structure does not allow duplicate insertion
@@ -342,6 +359,7 @@ void SkipList<Key,Comparator>::Insert(const Key& key) {
 
   int height = RandomHeight();
   if (height > GetMaxHeight()) {
+	// 新节点在 x 节点以上的层，指向头节点
     for (int i = GetMaxHeight(); i < height; i++) {
       prev[i] = head_;
     }
@@ -357,6 +375,7 @@ void SkipList<Key,Comparator>::Insert(const Key& key) {
     max_height_.NoBarrier_Store(reinterpret_cast<void*>(height));
   }
 
+  // 新建高度为 height 的新节点
   x = NewNode(key, height);
   for (int i = 0; i < height; i++) {
     // NoBarrier_SetNext() suffices since we will add a barrier when

@@ -115,6 +115,10 @@ class MemTableInserter : public WriteBatch::Handler {
   MemTable* mem_;
 
   virtual void Put(const Slice& key, const Slice& value) {
+	// mem_->Add 包括两个步骤：
+	// 1、构造 internal key = key + (seq << 8 | type)
+	// 2、写 buf = VARINT(internal_key_len) + internal_key + VARINT(value) + value
+	// 3、buf insert 跳表
     mem_->Add(sequence_, kTypeValue, key, value);
     sequence_++;
   }

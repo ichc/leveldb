@@ -89,6 +89,7 @@ void MemTable::Add(SequenceNumber s, ValueType type,
   //  value bytes  : char[value.size()]
   size_t key_size = key.size();
   size_t val_size = value.size();
+  // internal key 的内容包括 key 和 8字节的 (seq << 8 | type)
   size_t internal_key_size = key_size + 8;
   const size_t encoded_len =
       VarintLength(internal_key_size) + internal_key_size +
@@ -102,10 +103,12 @@ void MemTable::Add(SequenceNumber s, ValueType type,
   p = EncodeVarint32(p, val_size);
   memcpy(p, value.data(), val_size);
   assert((p + val_size) - buf == encoded_len);
+  // 在跳表中
   table_.Insert(buf);
 }
 
 bool MemTable::Get(const LookupKey& key, std::string* value, Status* s) {
+  // VARINT(userkey 长度) + userkey + (seq<<8 | type)
   Slice memkey = key.memtable_key();
   Table::Iterator iter(&table_);
   iter.Seek(memkey.data());
@@ -119,20 +122,27 @@ bool MemTable::Get(const LookupKey& key, std::string* value, Status* s) {
     // Check that it belongs to same user key.  We do not check the
     // sequence number since the Seek() call above should have skipped
     // all entries with overly large sequence numbers.
+	//
+	// memtable/skiplist 存储的 key 是 internalkey + value 
+	// VARINT(userkey + seq<<8|type 的总长度) + userkey + (seq<<8 | type) + VARINT(value 长度) + value
     const char* entry = iter.key();
     uint32_t key_length;
+	// 读取最前面的长度字段，存到 key_length，同时返回 varint 后面的位置，这里就是 userkey 的起始位置
     const char* key_ptr = GetVarint32Ptr(entry, entry+5, &key_length);
     if (comparator_.comparator.user_comparator()->Compare(
+		    // userkey 部分，去掉 seq<<8 | type
             Slice(key_ptr, key_length - 8),
             key.user_key()) == 0) {
       // Correct user key
       const uint64_t tag = DecodeFixed64(key_ptr + key_length - 8);
       switch (static_cast<ValueType>(tag & 0xff)) {
         case kTypeValue: {
+		  // value 部分
           Slice v = GetLengthPrefixedSlice(key_ptr + key_length);
           value->assign(v.data(), v.size());
           return true;
         }
+		// 删除的 key 在 memtable 中是标记删除
         case kTypeDeletion:
           *s = Status::NotFound(Slice());
           return true;

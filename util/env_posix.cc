@@ -602,6 +602,7 @@ static Env* default_env;
 static void InitDefaultEnv() { default_env = new PosixEnv; }
 
 Env* Env::Default() {
+  // 保证知初始化一次
   pthread_once(&once, InitDefaultEnv);
   return default_env;
 }

@@ -820,6 +820,7 @@ Status VersionSet::Recover() {
   };
 
   // Read "CURRENT" file, which contains a pointer to the current manifest file
+  // 从 CURRENT 文件读取当前的 manifest 文件
   std::string current;
   Status s = ReadFileToString(env_, CurrentFileName(dbname_), &current);
   if (!s.ok()) {

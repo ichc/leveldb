@@ -336,7 +336,7 @@ template<typename Key, class Comparator>
 SkipList<Key,Comparator>::SkipList(Comparator cmp, Arena* arena)
     : compare_(cmp),
       arena_(arena),
-      head_(NewNode(0 /* any key will do */, kMaxHeight)), // skiplist 构造时就新建了一个头节点，头节点的高度为 kMaxHeight
+      head_(NewNode(0 /* any key will do */, kMaxHeight)), // skiplist 构造时就新建了一个头节点，头节点的高度为 kMaxHeight，所有节点的高度不能超过头节点
       max_height_(reinterpret_cast<void*>(1)),
       rnd_(0xdeadbeef) {
 	

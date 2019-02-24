@@ -104,6 +104,7 @@ class DBImpl : public DB {
 
   // Constant after construction
   Env* const env_;
+  // 使用 option 传入的比较器，而 option 默认使用的是预定义全局 bytewise 比较器对象
   const InternalKeyComparator internal_comparator_;
   const Options options_;  // options_.comparator == &internal_comparator_
   bool owns_info_log_;
@@ -120,6 +121,7 @@ class DBImpl : public DB {
   port::Mutex mutex_;
   port::AtomicPointer shutting_down_;
   port::CondVar bg_cv_;          // Signalled when background work finishes
+  // MemTable 就是 skiplist + comparator
   MemTable* mem_;
   MemTable* imm_;                // Memtable being compacted
   port::AtomicPointer has_imm_;  // So bg thread can detect non-NULL imm_

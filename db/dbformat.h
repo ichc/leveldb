@@ -93,6 +93,7 @@ extern bool ParseInternalKey(const Slice& internal_key,
 // Returns the user key portion of an internal key.
 inline Slice ExtractUserKey(const Slice& internal_key) {
   assert(internal_key.size() >= 8);
+  // internal key ºó 8 ×Ö½Ú´æ´¢ÁË (seq<<8 |type)
   return Slice(internal_key.data(), internal_key.size() - 8);
 }
 

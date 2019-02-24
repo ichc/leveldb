@@ -61,7 +61,7 @@ inline uint32_t DecodeFixed32(const char* ptr) {
     uint32_t result;
     memcpy(&result, ptr, sizeof(result));  // gcc optimizes this to a plain load
     return result;
-  } else {
+  } else { // 大端字节序，低字节对应数字的高位
     return ((static_cast<uint32_t>(static_cast<unsigned char>(ptr[0])))
         | (static_cast<uint32_t>(static_cast<unsigned char>(ptr[1])) << 8)
         | (static_cast<uint32_t>(static_cast<unsigned char>(ptr[2])) << 16)
@@ -91,6 +91,8 @@ inline const char* GetVarint32Ptr(const char* p,
                                   uint32_t* value) {
   if (p < limit) {
     uint32_t result = *(reinterpret_cast<const unsigned char*>(p));
+	// 2^7 = 128, 最高 bit 为 1
+	// 最高 bit 为 0，这是 varint 最后的有效组
     if ((result & 128) == 0) {
       *value = result;
       return p + 1;

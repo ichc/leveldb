@@ -56,6 +56,7 @@ int InternalKeyComparator::Compare(const Slice& akey, const Slice& bkey) const {
   if (r == 0) {
     const uint64_t anum = DecodeFixed64(akey.data() + akey.size() - 8);
     const uint64_t bnum = DecodeFixed64(bkey.data() + bkey.size() - 8);
+	// (seq << 8 | type) 较小的优先
     if (anum > bnum) {
       r = -1;
     } else if (anum < bnum) {
@@ -107,12 +108,14 @@ LookupKey::LookupKey(const Slice& user_key, SequenceNumber s) {
   } else {
     dst = new char[needed];
   }
+  // LookupKey 编码：VARINT(user_key长度) + userkey内容 + (seq<<8 | kValueTypeForSeek)
   start_ = dst;
   dst = EncodeVarint32(dst, usize + 8);
+  // user_key 内容起始点
   kstart_ = dst;
   memcpy(dst, user_key.data(), usize);
   dst += usize;
-  EncodeFixed64(dst, PackSequenceAndType(s, kValueTypeForSeek));
+  EncodeFixed64(dst, PackSequenceAndType(s, kValueTypeForSeek)); // kValueTypeForSeek 被定义为 kTypeValue
   dst += 8;
   end_ = dst;
 }

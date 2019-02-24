@@ -110,7 +110,7 @@ Options SanitizeOptions(const std::string& dbname,
 }
 
 DBImpl::DBImpl(const Options& options, const std::string& dbname)
-    : env_(options.env),
+    : env_(options.env), /* option 默认使用 PosixEnv */
       internal_comparator_(options.comparator),
       options_(SanitizeOptions(dbname, &internal_comparator_, options)),
       owns_info_log_(options_.info_log != options.info_log),
@@ -119,7 +119,7 @@ DBImpl::DBImpl(const Options& options, const std::string& dbname)
       db_lock_(NULL),
       shutting_down_(NULL),
       bg_cv_(&mutex_),
-      mem_(new MemTable(internal_comparator_)),
+      mem_(new MemTable(internal_comparator_)), /* memtable 由 comparator 和 skiplist 组成 */
       imm_(NULL),
       logfile_(NULL),
       logfile_number_(0),
@@ -176,6 +176,7 @@ Status DBImpl::NewDB() {
 
   const std::string manifest = DescriptorFileName(dbname_, 1);
   WritableFile* file;
+  // manifest 文件
   Status s = env_->NewWritableFile(manifest, &file);
   if (!s.ok()) {
     return s;
@@ -183,6 +184,8 @@ Status DBImpl::NewDB() {
   {
     log::Writer log(file);
     std::string record;
+	// 编码信息并写 manifest
+	// 编码采取 tag1 | value1 | tag2 | value2，如果 value 是字符串，则编码成 tag|len|value
     new_db.EncodeTo(&record);
     s = log.AddRecord(record);
     if (s.ok()) {
@@ -192,6 +195,7 @@ Status DBImpl::NewDB() {
   delete file;
   if (s.ok()) {
     // Make "CURRENT" file that points to the new manifest file.
+	// CURRENT 文件存储了当前 manifest 的文件名
     s = SetCurrentFile(env_, dbname_, 1);
   } else {
     env_->DeleteFile(manifest);
@@ -264,8 +268,10 @@ Status DBImpl::Recover(VersionEdit* edit) {
   // Ignore error from CreateDir since the creation of the DB is
   // committed only when the descriptor is created, and this directory
   // may already exist from a previous failed creation attempt.
+  // 以 db 名创建目录
   env_->CreateDir(dbname_);
   assert(db_lock_ == NULL);
+  // 创建文件，并锁文件锁（非阻塞）
   Status s = env_->LockFile(LockFileName(dbname_), &db_lock_);
   if (!s.ok()) {
     return s;
@@ -1109,6 +1115,7 @@ Status DBImpl::Write(const WriteOptions& options, WriteBatch* my_batch) {
   w.sync = options.sync;
   w.done = false;
 
+  // RAII
   MutexLock l(&mutex_);
   writers_.push_back(&w);
   while (!w.done && &w != writers_.front()) {
@@ -1133,10 +1140,14 @@ Status DBImpl::Write(const WriteOptions& options, WriteBatch* my_batch) {
     // into mem_.
     {
       mutex_.Unlock();
+	  // Wrtie Ahead Log 预写日志，把随机写转换为顺序写
       status = log_->AddRecord(WriteBatchInternal::Contents(updates));
+	  // WAL 日志调用 write 系统函数写到操作系统的 cache 后，如果没调用 fsync，此时系统宕机重启，会丢失 cache 中的数据。
+	  // 但是进程异常退出不会丢数据
       if (status.ok() && options.sync) {
         status = logfile_->Sync();
       }
+	  // 写日志后，更新内存 skiplist
       if (status.ok()) {
         status = WriteBatchInternal::InsertInto(updates, mem_);
       }

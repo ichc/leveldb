@@ -100,6 +100,9 @@ void PutLengthPrefixedSlice(std::string* dst, const Slice& value) {
   dst->append(value.data(), value.size());
 }
 
+// 这个函数用于计算一个无符号数字用 varint 编码方案，需要多少字节的空间存储编码后的结果。
+// varint 是一个紧凑型的数字编码方案，每个字节的最高位 1 表示下一个字节仍然是有效数据，0 表示这是最后一组有效数字。
+// 因此，小于等于 127 的数字只需一个字节的空间，大于 0xFFFFFFF(28 bits) 则需要 5 字节的空间。
 int VarintLength(uint64_t v) {
   int len = 1;
   while (v >= 128) {
@@ -116,13 +119,15 @@ const char* GetVarint32PtrFallback(const char* p,
   for (uint32_t shift = 0; shift <= 28 && p < limit; shift += 7) {
     uint32_t byte = *(reinterpret_cast<const unsigned char*>(p));
     p++;
+	// 字节最高位是 1
     if (byte & 128) {
       // More bytes are present
+	  // leveldb varint 多字节存放时是小端序的，因此低位的字节还原时也在低位
       result |= ((byte & 127) << shift);
     } else {
       result |= (byte << shift);
       *value = result;
-      return reinterpret_cast<const char*>(p);
+      return reinterpret_cast<const char*>(p); // 返回 varint 后面的位置
     }
   }
   return NULL;
